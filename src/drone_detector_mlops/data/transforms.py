@@ -15,7 +15,7 @@ train_transform = transforms.Compose(
 
 val_transform = transforms.Compose(
     [
-        transforms.Resize((224, 224)),  # Force both dimensions to 224
+        transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
     ]
