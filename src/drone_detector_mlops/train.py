@@ -1,5 +1,5 @@
 from drone_detector_mlops.model import Model
-from drone_detector_mlops.data import MyDataset
+from drone_detector_mlops.data.data import MyDataset
 
 def train():
     dataset = MyDataset("data/raw")
