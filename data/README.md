@@ -19,20 +19,6 @@ uv run dvc pull
 
 Images will appear in `data/drone/` and `data/bird/`.
 
-## Troubleshooting
-
-If you can't get it to work, Linus can add you to the GCP project.
-
-If the data is not showing up, try:
-
-```bash
-# Check DVC status
-uv run dvc status
-
-# Force re-pull
-uv run dvc pull --force
-```
-
 ## Updating data
 
 ```bash
@@ -42,3 +28,14 @@ git add data/drone.dvc data/bird.dvc
 git commit -m "Update dataset"
 uv run dvc push
 git push
+```
+
+## Overview
+
+The dataset has 4,104 images across two classes: drone (60.9%) and bird (39.1%).
+
+- **Format**: All JPEG
+- **Image sizes**: Drone images average ~1977x1189px, bird images average ~331x243px
+- **Splits**: Pre-defined stratified train/val/test (70/15/15) in `data/splits/` for reproducibility
+
+The dataset uses stratified splitting to maintain class balance across all splits. Images require resizing when loading (typically 224x224) - this is handled via transforms in the dataloader.
