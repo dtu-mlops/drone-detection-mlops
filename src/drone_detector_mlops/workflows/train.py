@@ -26,8 +26,10 @@ def main():
     logger.info("Starting training", **vars(args))
 
     # Setup
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info(f"Using device: {device}")
+    device = torch.device(
+        "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+    )
+    logger.info("Using device", device=str(device))
 
     model, optimizer, criterion = setup_training(device, args.lr)
 
