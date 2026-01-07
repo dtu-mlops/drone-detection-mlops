@@ -61,3 +61,4 @@ started with Machine Learning Operations (MLOps).
 - [x] `make pr` uses Claude Code with the gh-pull-requests skill to create a PR
 - [x] `make test` runs tests with coverage
 - [x] Use the `uv run train` command to run the training script
+- [x] Set up pre-commit hooks for linting and formatting
