@@ -53,3 +53,12 @@ The directory structure of the project looks like this:
 Created using [mlops_template](https://github.com/SkafteNicki/mlops_template),
 a [cookiecutter template](https://github.com/cookiecutter/cookiecutter) for getting
 started with Machine Learning Operations (MLOps).
+
+
+## Cool features
+
+- [x] Automatically delete branches after PR is merged
+- [x] `make pr` uses Claude Code with the gh-pull-requests skill to create a PR
+- [x] `make test` runs tests with coverage
+- [x] Use the `uv run train` command to run the training script
+- [x] Set up pre-commit hooks for linting and formatting
