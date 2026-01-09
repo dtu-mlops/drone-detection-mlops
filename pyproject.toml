@@ -59,8 +59,8 @@ fix = true
 omit = ["tests/*", "/private/var/*", "/tmp/*"]
 
 [project.scripts]
-train = "drone_detector_mlops.workflows.train:main"
-test = "drone_detector_mlops.workflows.test:main"
+train = "drone_detector_mlops.workflows.train:app"
+test = "drone_detector_mlops.workflows.test:app"
 
 [tool.pytest.ini_options]
 filterwarnings = [
