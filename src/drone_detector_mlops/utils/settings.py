@@ -23,8 +23,7 @@ class Settings(BaseSettings):
     WANDB_API_KEY: str = Field(...)
 
     # Cloud settings
-    TRAINING_MODE: str = Field(default="local")  # "local" or "cloud"
-    DATA_SOURCE: str = Field(default="local")  # "local" or "gcs"
+    MODE: str = Field(default="cloud")
     GCS_DATA_PATH: str = Field(default="gs://drone-detection-mlops-data/structured")
     GCS_MODELS_BUCKET: str = Field(default="gs://drone-detection-mlops-models")
     GCP_PROJECT: str = Field(default="drone-detection-mlops")
