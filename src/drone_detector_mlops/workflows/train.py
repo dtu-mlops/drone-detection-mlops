@@ -23,7 +23,7 @@ timestamp = time.strftime("%Y%m%d-%H%M%S")
 @app.command()
 def main(
     epochs: int = 10,
-    batch_size: int = 16,
+    batch_size: int = 32,
     lr: float = 0.001,
 ):
     storage = get_storage()
