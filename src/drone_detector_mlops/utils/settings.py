@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     GCS_DATA_PATH: str = Field(default="gs://drone-detection-mlops-data/structured")
     GCS_MODELS_BUCKET: str = Field(default="gs://drone-detection-mlops-models")
     GCP_PROJECT: str = Field(default="drone-detection-mlops")
-    GCP_REGION: str = Field(default="europe-north2")
+    GCP_REGION: str = Field(default="europe-west4")
 
 
 settings = Settings()
