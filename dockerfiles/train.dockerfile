@@ -19,9 +19,8 @@ COPY src/ /app/src/
 
 RUN uv pip install --system -e .
 
-COPY data/splits/ /app/data/splits/
-
 ENV PYTHONPATH=/app/src
+
 ENTRYPOINT ["python", "-m", "drone_detector_mlops.workflows.train"]
 
-CMD ["--data-dir", "data", "--output-dir", "models", "--epochs", "10", "--batch-size", "32", "--lr", "0.001"]
+CMD ["--epochs", "10", "--batch-size", "32", "--lr", "0.001"]
