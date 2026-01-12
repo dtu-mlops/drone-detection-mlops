@@ -13,14 +13,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY pyproject.toml uv.lock ./
 
-RUN uv pip install --system -r pyproject.toml
+COPY src/ ./src/
 
-COPY src/ /app/src/
+RUN ls -R /app
 
-RUN uv pip install --system -e .
-
-ENV PYTHONPATH=/app/src
+RUN uv pip install --system --no-cache -e .
 
 ENTRYPOINT ["python", "-m", "drone_detector_mlops.workflows.train"]
-
-CMD ["--epochs", "10", "--batch-size", "32", "--lr", "0.001"]
