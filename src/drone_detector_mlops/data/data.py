@@ -75,7 +75,7 @@ def get_dataloaders(
     data_dir,
     splits_dir,
     batch_size: int,
-    num_workers: int = 4,
+    num_workers: int = 0,
     transforms_dict=None,
 ):
     """Create dataloaders for train/val/test splits."""
