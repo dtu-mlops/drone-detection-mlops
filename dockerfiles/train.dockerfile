@@ -15,6 +15,8 @@ COPY pyproject.toml uv.lock ./
 
 COPY src/ ./src/
 
+ENV PYTHONPATH=/app/src
+
 RUN ls -R /app
 
 RUN uv pip install --system --no-cache -e .
