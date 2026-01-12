@@ -1,7 +1,6 @@
-import datetime
+from datetime import datetime, timezone
 import torch
 from PIL import Image
-import time
 
 from drone_detector_mlops.api.schemas import Prediction, PredictionMetadata, PredictionScores
 from drone_detector_mlops.model import get_model
@@ -42,7 +41,7 @@ def load_model_singleton():
 
 def predict_image(image: Image.Image) -> tuple[Prediction, PredictionMetadata]:
     """Run inference on a single image."""
-    start_time = time.time()
+    start_time = datetime.now(timezone.utc)
 
     # Load model
     model = load_model_singleton()
@@ -59,7 +58,7 @@ def predict_image(image: Image.Image) -> tuple[Prediction, PredictionMetadata]:
     confidence, predicted_class = torch.max(probs, 0)
     class_names = ["drone", "bird"]
 
-    inference_time = (time.time() - start_time) * 1000
+    inference_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
     # Create Pydantic objects
     prediction = Prediction(
@@ -74,7 +73,7 @@ def predict_image(image: Image.Image) -> tuple[Prediction, PredictionMetadata]:
     metadata = PredictionMetadata(
         model_version=_model_version,
         inference_time_ms=inference_time,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
     )
 
     return prediction, metadata
