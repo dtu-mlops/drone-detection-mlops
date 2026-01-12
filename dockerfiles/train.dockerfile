@@ -1,6 +1,6 @@
 FROM ghcr.io/astral-sh/uv:0.5.21 AS uv_bin
 
-FROM python:3.12-slim
+FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime
 
 WORKDIR /app
 
