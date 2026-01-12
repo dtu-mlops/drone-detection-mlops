@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Union
+import gcsfs
 import torch
 import tempfile
 from google.cloud import storage as gcs
@@ -82,6 +83,17 @@ class StorageContext:
 
         logger.success("Model saved to GCS", path=gcs_path)
         return gcs_path
+
+    def load_model(self, filename: str):
+        """Load model state dict from storage (local or GCS)."""
+        if self.mode == "local":
+            model_path = self.models_dir / filename
+            return torch.load(model_path, map_location="cpu")
+        else:  # cloud mode
+            model_path = f"{self.models_dir}/{filename}"
+            fs = gcsfs.GCSFileSystem()
+            with fs.open(model_path, "rb") as f:
+                return torch.load(f, map_location="cpu")
 
 
 def get_storage() -> StorageContext:
