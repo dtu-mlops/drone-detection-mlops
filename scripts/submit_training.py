@@ -20,6 +20,7 @@ def main(
     accelerator_type: str = typer.Option("NVIDIA_TESLA_T4", help="GPU type (or 'None' for CPU)"),
     accelerator_count: int = typer.Option(1, help="Number of GPUs"),
     image_tag: str = typer.Option("latest", help="Docker image tag"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
     """Submit a training job to Vertex AI."""
 
@@ -69,7 +70,7 @@ def main(
         lr=lr,
     )
 
-    if not typer.confirm("Submit this job?", default=True):
+    if not yes and not typer.confirm("Submit this job?", default=True):
         logger.warning("Job submission cancelled")
         raise typer.Exit(0)
 
@@ -89,7 +90,7 @@ def main(
                 environment_variables=env_vars,
                 replica_count=1,
                 machine_type=machine_type,
-                sync=True,  # Changed to True to see errors
+                sync=True,
             )
         else:
             logger.info("Submitting GPU job...")
@@ -100,7 +101,7 @@ def main(
                 machine_type=machine_type,
                 accelerator_type=accelerator_type,
                 accelerator_count=accelerator_count,
-                sync=True,  # Changed to True to see errors
+                sync=True,
             )
 
         logger.info("Job.run() returned", result=str(result))
