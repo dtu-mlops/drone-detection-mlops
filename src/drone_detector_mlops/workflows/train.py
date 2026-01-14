@@ -14,6 +14,7 @@ from drone_detector_mlops.workflows.training import (
     train_epoch,
     validate_epoch,
 )
+from drone_detector_mlops.utils.profiling import get_profiler
 
 logger = get_logger(__name__)
 app = typer.Typer()
@@ -25,6 +26,7 @@ def main(
     epochs: int = 10,
     batch_size: int = 32,
     lr: float = 0.001,
+    profile: bool = typer.Option(False, "--profile", help="Enable PyTorch profiling"),
 ):
     storage = get_storage()
 
@@ -36,6 +38,7 @@ def main(
         epochs=epochs,
         batch_size=batch_size,
         lr=lr,
+        profile=profile,
     )
 
     # Setup
@@ -67,7 +70,7 @@ def main(
         data_dir=storage.data_dir,
         splits_dir=storage.splits_dir,
         batch_size=batch_size,
-        num_workers=0,
+        num_workers=4,
         transforms_dict={
             "train": train_transform,
             "val": val_transform,
@@ -76,29 +79,41 @@ def main(
     )
 
     # Training loop
-    for epoch in range(epochs):
-        train_metrics = train_epoch(model, train_loader, optimizer, criterion, device)
-        val_metrics = validate_epoch(model, val_loader, criterion, device)
+    profiler_ctx = get_profiler(f"profiler-{timestamp}") if profile else None
 
-        # Log to console
-        logger.info(
-            f"Epoch {epoch + 1}/{epochs}",
-            train_loss=train_metrics["loss"],
-            train_acc=train_metrics["accuracy"],
-            val_loss=val_metrics["loss"],
-            val_acc=val_metrics["accuracy"],
-        )
+    if profiler_ctx:
+        profiler_ctx.__enter__()
+        logger.info("PyTorch profiler enabled", output_dir=f"profiler-{timestamp}")
 
-        # Log to W&B
-        wandb.log(
-            {
-                "epoch": epoch + 1,
-                "train/loss": train_metrics["loss"],
-                "train/accuracy": train_metrics["accuracy"],
-                "val/loss": val_metrics["loss"],
-                "val/accuracy": val_metrics["accuracy"],
-            }
-        )
+    try:
+        for epoch in range(epochs):
+            train_metrics = train_epoch(model, train_loader, optimizer, criterion, device, profiler_ctx, epoch + 1)
+            val_metrics = validate_epoch(model, val_loader, criterion, device, epoch + 1)
+
+            # Log to console
+            logger.info(
+                f"Epoch {epoch + 1}/{epochs}",
+                train_loss=train_metrics["loss"],
+                train_acc=train_metrics["accuracy"],
+                val_loss=val_metrics["loss"],
+                val_acc=val_metrics["accuracy"],
+            )
+
+            # Log to W&B
+            wandb.log(
+                {
+                    "epoch": epoch + 1,
+                    "train/loss": train_metrics["loss"],
+                    "train/accuracy": train_metrics["accuracy"],
+                    "val/loss": val_metrics["loss"],
+                    "val/accuracy": val_metrics["accuracy"],
+                }
+            )
+    finally:
+        if profiler_ctx:
+            profiler_ctx.__exit__(None, None, None)
+            logger.success("Profiling complete", output_dir=f"profiler-{timestamp}")
+            logger.info("View results: tensorboard --logdir=profiler-" + timestamp)
 
     # Save model using storage context
     model_path = storage.save_model(model.state_dict(), f"model-{timestamp}.pth")

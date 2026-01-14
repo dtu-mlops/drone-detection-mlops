@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from drone_detector_mlops.utils.logger import get_logger
 from drone_detector_mlops.model import get_model
@@ -26,14 +27,17 @@ def train_epoch(
     optimizer: torch.optim.Optimizer,
     criterion: nn.Module,
     device: torch.device,
+    profiler=None,
+    epoch: int = 0,
 ) -> dict:
     """Train for one epoch."""
     model.train()
-    total_loss = 0.0
-    correct = 0
+    total_loss = torch.tensor(0.0, device=device)
+    correct = torch.tensor(0, device=device)
     total = 0
 
-    for images, labels in dataloader:
+    pbar = tqdm(dataloader, desc=f"Epoch {epoch} [Train]", leave=False)
+    for batch_idx, (images, labels) in enumerate(pbar):
         images, labels = images.to(device), labels.to(device)
 
         optimizer.zero_grad()
@@ -42,14 +46,25 @@ def train_epoch(
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item()
+        # Step profiler (this marks end of training step)
+        if profiler:
+            profiler.step()
+
+        # Compute metrics (accumulate tensors, minimize .item() calls)
+        total_loss += loss.detach()
         _, predicted = outputs.max(1)
-        correct += predicted.eq(labels).sum().item()
+        correct += predicted.eq(labels).sum().detach()
         total += labels.size(0)
 
+        # Update progress bar (only every 10 batches to reduce .item() overhead)
+        if batch_idx % 10 == 0:
+            pbar.set_postfix(
+                {"loss": f"{total_loss.item() / (batch_idx + 1):.4f}", "acc": f"{correct.item() / total:.4f}"}
+            )
+
     return {
-        "loss": total_loss / len(dataloader),
-        "accuracy": correct / total,
+        "loss": total_loss.item() / len(dataloader),
+        "accuracy": correct.item() / total,
     }
 
 
@@ -58,6 +73,7 @@ def validate_epoch(
     dataloader: DataLoader,
     criterion: nn.Module,
     device: torch.device,
+    epoch: int = 0,
 ) -> dict:
     """Validate for one epoch."""
     model.eval()
@@ -66,16 +82,22 @@ def validate_epoch(
     total = 0
 
     with torch.no_grad():
-        for images, labels in dataloader:
+        pbar = tqdm(dataloader, desc=f"Epoch {epoch} [Val]", leave=False)
+        for images, labels in pbar:
             images, labels = images.to(device), labels.to(device)
 
             outputs = model(images)
             loss = criterion(outputs, labels)
 
-            total_loss += loss.item()
+            # Compute metrics (call .item() only once per tensor)
+            loss_val = loss.item()
+            total_loss += loss_val
             _, predicted = outputs.max(1)
             correct += predicted.eq(labels).sum().item()
             total += labels.size(0)
+
+            # Update progress bar
+            pbar.set_postfix({"loss": f"{loss_val:.4f}", "acc": f"{correct / total:.4f}"})
 
     return {
         "loss": total_loss / len(dataloader),
