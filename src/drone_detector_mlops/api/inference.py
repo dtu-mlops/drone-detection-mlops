@@ -25,7 +25,7 @@ def load_model_singleton():
         storage = get_storage()
 
         # Load state dict
-        state_dict = storage.load_model(settings.MODEL_FILENAME)
+        state_dict = storage.load_state_dict(settings.MODEL_FILENAME)
 
         # Create model and load weights
         model = get_model(pretrained=False)
