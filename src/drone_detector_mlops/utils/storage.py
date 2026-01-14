@@ -84,7 +84,7 @@ class StorageContext:
         logger.success("Model saved to GCS", path=gcs_path)
         return gcs_path
 
-    def load_model(self, filename: str):
+    def load_state_dict(self, filename: str):
         """Load model state dict from storage (local or GCS)."""
         if self.mode == "local":
             model_path = self.models_dir / filename
