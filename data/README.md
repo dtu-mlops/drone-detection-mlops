@@ -32,10 +32,13 @@ git push
 
 ## Overview
 
-The dataset has 4,104 images across two classes: drone (60.9%) and bird (39.1%).
+The dataset has 828 images across two classes: drone (51.7%) and bird (48.3%).
 
 - **Format**: All JPEG
-- **Image sizes**: Drone images average ~1977x1189px, bird images average ~331x243px
+- **Total images**: 828 (428 drone, 400 bird)
 - **Splits**: Pre-defined stratified train/val/test (70/15/15) in `data/splits/` for reproducibility
+  - Train: 580 images
+  - Val: 123 images
+  - Test: 125 images
 
 The dataset uses stratified splitting to maintain class balance across all splits. Images require resizing when loading (typically 224x224) - this is handled via transforms in the dataloader.

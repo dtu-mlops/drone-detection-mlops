@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from dotenv import load_dotenv
@@ -20,14 +21,20 @@ class Settings(BaseSettings):
 
     # W&B settings
     WANDB_PROJECT_NAME: str = Field("drone-detector-mlops")
-    WANDB_API_KEY: str = Field(...)
+    WANDB_API_KEY: Optional[str] = Field(default=None)  # Optional for API deployment
 
     # Cloud settings
-    MODE: str = Field(default="cloud")
+    MODE: str = Field(default="cloud")  # "local" or "cloud"
     GCS_DATA_PATH: str = Field(default="gs://drone-detection-mlops-data/structured")
     GCS_MODELS_BUCKET: str = Field(default="gs://drone-detection-mlops-models")
     GCP_PROJECT: str = Field(default="drone-detection-mlops")
     GCP_REGION: str = Field(default="europe-west4")
+
+    # API Configuration
+    API_HOST: str = "0.0.0.0"
+    API_PORT: int = 8000
+    MAX_UPLOAD_SIZE_MB: int = 10
+    MODEL_FILENAME: str = "model-latest.onnx"
 
 
 settings = Settings()

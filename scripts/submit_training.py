@@ -1,9 +1,8 @@
-"""Submit training job to Vertex AI."""
-
 import os
 from datetime import datetime
 from google.cloud import aiplatform
 import typer
+import traceback
 
 from drone_detector_mlops.utils.logger import get_logger
 from drone_detector_mlops.utils.settings import settings
@@ -125,13 +124,8 @@ def main(
 
     except Exception as e:
         logger.error("Job submission failed", error=str(e))
-        import traceback
 
-        print("\n" + "=" * 80)
-        print("FULL ERROR TRACEBACK:")
-        print("=" * 80)
         traceback.print_exc()
-        print("=" * 80 + "\n")
         raise typer.Exit(1)
 
 
