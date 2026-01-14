@@ -1,9 +1,9 @@
 from pathlib import Path
 import torch
-import typer
 import wandb
 import time
-
+import hydra
+from omegaconf import DictConfig, OmegaConf
 from drone_detector_mlops.utils.settings import settings
 from drone_detector_mlops.utils.logger import get_logger
 from drone_detector_mlops.utils.storage import get_storage
@@ -16,23 +16,20 @@ from drone_detector_mlops.workflows.training import (
 )
 
 logger = get_logger(__name__)
-app = typer.Typer()
 timestamp = time.strftime("%Y%m%d-%H%M%S")
 
 
-@app.command()
-def main(
-    epochs: int = 10,
-    batch_size: int = 32,
-    lr: float = 0.001,
-):
-    storage = get_storage()
+@hydra.main(version_base=None, config_path="../../../configs", config_name="config")
+def main(cfg: DictConfig) -> float:
+    """Run training with Hydra config."""
+    logger.info("Training config:\n" + OmegaConf.to_yaml(cfg))
+
+    epochs = cfg.hyper_parameters.epochs
+    batch_size = cfg.hyper_parameters.batch_size
+    lr = cfg.hyper_parameters.lr
 
     logger.info(
         "Starting training",
-        mode=settings.MODE,
-        data_dir=str(storage.data_dir),
-        models_dir=str(storage.models_dir),
         epochs=epochs,
         batch_size=batch_size,
         lr=lr,
@@ -63,6 +60,9 @@ def main(
     )
     logger.success("W&B initialized", project=wandb.run.project, run_id=wandb.run.id)
 
+    # Initialize storage
+    storage = get_storage()
+
     train_loader, val_loader, _ = get_dataloaders(
         data_dir=storage.data_dir,
         splits_dir=storage.splits_dir,
@@ -76,6 +76,7 @@ def main(
     )
 
     # Training loop
+    val_metrics = {"loss": float("inf")}  # Default value
     for epoch in range(epochs):
         train_metrics = train_epoch(model, train_loader, optimizer, criterion, device)
         val_metrics = validate_epoch(model, val_loader, criterion, device)
@@ -122,6 +123,8 @@ def main(
 
     wandb.finish()
 
+    return val_metrics["loss"]  # Return for sweeper optimization
+
 
 if __name__ == "__main__":
-    app()
+    main()
