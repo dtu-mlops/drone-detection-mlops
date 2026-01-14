@@ -50,6 +50,7 @@ dev = [
     "ipython>=9.8.0",
     "jupyter>=1.1.1",
     "prek==0.2.27",
+    "locust>=2.43.1",
 ]
 
 [tool.ruff]
