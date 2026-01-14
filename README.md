@@ -78,7 +78,7 @@ The API uses **ONNX Runtime** for optimized CPU inference (much smaller containe
 
 ```bash
 # Build API container
-uv run invoke build-api
+uv run invoke cloud-build-api
 
 # Deploy to Cloud Run
 uv run invoke deploy-api
