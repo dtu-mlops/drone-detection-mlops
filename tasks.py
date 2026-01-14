@@ -28,26 +28,57 @@ def test(ctx: Context) -> None:
 
 
 @task
-def docker_build(ctx: Context, progress: str = "plain") -> None:
-    """Build docker images."""
+def docker_build_train(ctx: Context, progress: str = "plain") -> None:
+    """Build training Docker image locally."""
     ctx.run(
         f"docker build -t train:latest . -f dockerfiles/train.dockerfile --progress={progress}",
         echo=True,
         pty=not WINDOWS,
     )
+
+
+@task
+def docker_build_api(ctx: Context, progress: str = "plain") -> None:
+    """Build API Docker image locally."""
     ctx.run(
-        f"docker build -t api:latest . -f dockerfiles/api.dockerfile --progress={progress}", echo=True, pty=not WINDOWS
+        f"docker build -t api:latest . -f dockerfiles/api.dockerfile --progress={progress}",
+        echo=True,
+        pty=not WINDOWS,
     )
 
 
 @task
-def build_api(ctx: Context) -> None:
+def docker_build_all(ctx: Context, progress: str = "plain") -> None:
+    """Build all docker images locally."""
+    docker_build_train(ctx, progress)
+    docker_build_api(ctx, progress)
+
+
+@task
+def cloud_build_train(ctx: Context) -> None:
+    """Build training image using Google Cloud Build."""
+    ctx.run(
+        "gcloud builds submit --config cloudbuild-train.yaml",
+        echo=True,
+        pty=not WINDOWS,
+    )
+
+
+@task
+def cloud_build_api(ctx: Context) -> None:
     """Build API image using Google Cloud Build."""
     ctx.run(
         "gcloud builds submit --config cloudbuild-api.yaml",
         echo=True,
         pty=not WINDOWS,
     )
+
+
+@task
+def cloud_build_all(ctx: Context) -> None:
+    """Build all docker images using Google Cloud Build."""
+    cloud_build_train(ctx)
+    cloud_build_api(ctx)
 
 
 @task
