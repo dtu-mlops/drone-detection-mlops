@@ -116,6 +116,16 @@ def deploy_api(ctx: Context) -> None:
     )
 
 
+@task
+def load_test(ctx: Context, duration: int = 600, users: int = 10) -> None:
+    """Run Locust load test in the browser."""
+    ctx.run(
+        "uv run locust -f tests/load/locustfile.py --host https://drone-detector-api-66108710596.europe-north2.run.app",
+        echo=True,
+        pty=not WINDOWS,
+    )
+
+
 # Documentation commands
 @task
 def build_docs(ctx: Context) -> None:
