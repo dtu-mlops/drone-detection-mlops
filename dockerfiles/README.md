@@ -65,7 +65,7 @@ docker-compose build api
 docker-compose up api
 
 # Cloud deployment
-uv run invoke build-api   # Build on Cloud Build
+uv run invoke cloud-build-api   # Build on Cloud Build
 uv run invoke deploy-api  # Deploy to Cloud Run
 ```
 
