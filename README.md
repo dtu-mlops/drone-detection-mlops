@@ -69,3 +69,21 @@ uv run -m scripts.submit_training \
   --epochs 5 \
   --batch-size 128
 ```
+
+### API Deployment
+
+The API uses **ONNX Runtime** for optimized CPU inference (much smaller container than PyTorch).
+
+#### Build and Deploy
+
+```bash
+# Build API container
+uv run invoke build-api
+
+# Deploy to Cloud Run
+uv run invoke deploy-api
+```
+
+**Live endpoint:** `https://drone-detector-api-66108710596.europe-north2.run.app`
+
+Models are automatically loaded from GCS (`model-latest.onnx`).
