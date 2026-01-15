@@ -48,10 +48,21 @@ def docker_build_api(ctx: Context, progress: str = "plain") -> None:
 
 
 @task
+def docker_build_frontend(ctx: Context, progress: str = "plain") -> None:
+    """Build frontend Docker image locally."""
+    ctx.run(
+        f"docker build -t frontend:latest . -f dockerfiles/frontend.dockerfile --progress={progress}",
+        echo=True,
+        pty=not WINDOWS,
+    )
+
+
+@task
 def docker_build_all(ctx: Context, progress: str = "plain") -> None:
     """Build all docker images locally."""
     docker_build_train(ctx, progress)
     docker_build_api(ctx, progress)
+    docker_build_frontend(ctx, progress)
 
 
 @task
@@ -75,10 +86,21 @@ def cloud_build_api(ctx: Context) -> None:
 
 
 @task
+def cloud_build_frontend(ctx: Context) -> None:
+    """Build frontend image using Google Cloud Build."""
+    ctx.run(
+        "gcloud builds submit --config cloud/cloudbuild-frontend.yaml",
+        echo=True,
+        pty=not WINDOWS,
+    )
+
+
+@task
 def cloud_build_all(ctx: Context) -> None:
     """Build all docker images using Google Cloud Build."""
     cloud_build_train(ctx)
     cloud_build_api(ctx)
+    cloud_build_frontend(ctx)
 
 
 @task
@@ -137,3 +159,29 @@ def build_docs(ctx: Context) -> None:
 def serve_docs(ctx: Context) -> None:
     """Serve documentation."""
     ctx.run("uv run mkdocs serve --config-file docs/mkdocs.yaml", echo=True, pty=not WINDOWS)
+
+
+@task
+def pr(ctx: Context) -> None:
+    """Create a PR using the gh-pull-requests skill."""
+    # Check if claude CLI is installed
+    result = ctx.run("which claude", warn=True, hide=True)
+    if not result.ok:
+        print("Error: claude CLI not installed")
+        return
+
+    # Check if gh CLI is installed
+    result = ctx.run("which gh", warn=True, hide=True)
+    if not result.ok:
+        print("Error: gh CLI not installed")
+        return
+
+    # Check if gh is authenticated
+    result = ctx.run("gh auth status", warn=True, hide=True)
+    if not result.ok:
+        print("Error: gh not authenticated. Run 'gh auth login'")
+        return
+
+    print("Creating a PR, this can take 30s")
+    print("I will open the Github website for you to review and merge")
+    ctx.run('claude -p "Create a PR using the gh-pull-requests skill"', echo=True, pty=not WINDOWS)
