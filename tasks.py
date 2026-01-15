@@ -139,6 +139,18 @@ def deploy_api(ctx: Context) -> None:
 
 
 @task
+def deploy_frontend(ctx: Context) -> None:
+    """Deploy frontend to Cloud Run."""
+    ctx.run(
+        "gcloud run services update drone-detector-frontend "
+        "--region europe-north2 "
+        "--image europe-north2-docker.pkg.dev/drone-detection-mlops/ml-containers/frontend:latest",
+        echo=True,
+        pty=not WINDOWS,
+    )
+
+
+@task
 def load_test(ctx: Context, duration: int = 600, users: int = 10) -> None:
     """Run Locust load test in the browser."""
     ctx.run(
