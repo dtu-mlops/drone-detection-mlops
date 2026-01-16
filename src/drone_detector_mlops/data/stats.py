@@ -173,92 +173,363 @@ def print_console_report(
     )
 
 
+def get_all_files_from_splits(splits_dir: Path) -> set[str]:
+    """Get all file paths from all split files."""
+    all_files = set()
+    for split_file in ["train_files.txt", "val_files.txt", "test_files.txt"]:
+        split_path = splits_dir / split_file
+        if split_path.exists():
+            all_files.update(split_path.read_text().strip().split("\n"))
+    return all_files
+
+
+def find_new_files(before_splits_dir: Path, after_splits_dir: Path) -> list[str]:
+    """Find files that exist in 'after' but not in 'before'."""
+    before_files = get_all_files_from_splits(before_splits_dir)
+    after_files = get_all_files_from_splits(after_splits_dir)
+    return sorted(after_files - before_files)
+
+
+def show_before_and_new_images(
+    before_dataset: DroneVsBirdDataset,
+    after_dataset: DroneVsBirdDataset,
+    new_files: list[str],
+    n_before: int = 8,
+    n_new: int = 8,
+) -> plt.Figure:
+    """Create a grid showing 'before' sample images and new images side by side."""
+    # Get before samples
+    before_indices = torch.randperm(len(before_dataset))[:n_before]
+
+    # Get new image indices from after dataset
+    after_file_to_idx = {}
+    for idx in range(len(after_dataset)):
+        img_path = after_dataset._build_image_path(idx)
+        # Extract relative path (e.g., "bird/image.jpeg")
+        rel_path = "/".join(img_path.parts[-2:])
+        after_file_to_idx[rel_path] = idx
+
+    new_indices = []
+    for f in new_files[:n_new]:
+        if f in after_file_to_idx:
+            new_indices.append(after_file_to_idx[f])
+
+    n_before_actual = len(before_indices)
+    n_new_actual = len(new_indices)
+    n_cols = 4
+
+    # Calculate rows needed for each section
+    before_rows = (n_before_actual + n_cols - 1) // n_cols
+    new_rows = (n_new_actual + n_cols - 1) // n_cols if n_new_actual > 0 else 1
+
+    fig, axes = plt.subplots(before_rows + new_rows, n_cols, figsize=(12, 3 * (before_rows + new_rows)))
+    if before_rows + new_rows == 1:
+        axes = axes.reshape(1, -1)
+    axes = axes.reshape(-1, n_cols)
+
+    # Plot before images
+    for row in range(before_rows):
+        for col in range(n_cols):
+            ax = axes[row, col]
+            idx_pos = row * n_cols + col
+            if idx_pos < n_before_actual:
+                data_idx = before_indices[idx_pos]
+                img_path = before_dataset._build_image_path(data_idx.item())
+                image = before_dataset._open_image(img_path)
+                label = before_dataset.labels[data_idx.item()]
+                ax.imshow(image)
+                title = f"{LABEL_NAMES[label]}"
+                if row == 0 and col == 0:
+                    title = f"[BEFORE] {title}"
+                ax.set_title(title, fontsize=10)
+            ax.axis("off")
+
+    # Add separator text
+    if n_new_actual > 0:
+        # Plot new images
+        for row in range(new_rows):
+            for col in range(n_cols):
+                ax = axes[before_rows + row, col]
+                idx_pos = row * n_cols + col
+                if idx_pos < n_new_actual:
+                    data_idx = new_indices[idx_pos]
+                    img_path = after_dataset._build_image_path(data_idx)
+                    image = after_dataset._open_image(img_path)
+                    label = after_dataset.labels[data_idx]
+                    ax.imshow(image)
+                    title = f"{LABEL_NAMES[label]}"
+                    if row == 0 and col == 0:
+                        title = f"[NEW] {title}"
+                    ax.set_title(title, fontsize=10, color="green")
+                ax.axis("off")
+    else:
+        # No new images - show placeholder
+        ax = axes[before_rows, 0]
+        ax.text(0.5, 0.5, "No new images", ha="center", va="center", fontsize=14)
+        ax.axis("off")
+        for col in range(1, n_cols):
+            axes[before_rows, col].axis("off")
+
+    fig.tight_layout()
+    return fig
+
+
+def plot_comparison_distribution(
+    before_datasets: dict[str, DroneVsBirdDataset],
+    after_datasets: dict[str, DroneVsBirdDataset],
+) -> plt.Figure:
+    """Plot before/after label distribution comparison."""
+    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+    colors_before = ["#a8d5a2", "#a8c8e8"]  # lighter green/blue for before
+    colors_after = ["#2ecc71", "#3498db"]  # darker green/blue for after
+
+    bar_width = 0.35
+    x = [0, 1]
+
+    for ax, split_name in zip(axes, ["Train", "Validation", "Test"]):
+        before_ds = before_datasets[split_name]
+        after_ds = after_datasets[split_name]
+
+        before_counts = torch.bincount(torch.tensor(before_ds.labels), minlength=2).numpy()
+        after_counts = torch.bincount(torch.tensor(after_ds.labels), minlength=2).numpy()
+
+        # Plot grouped bars
+        x_before = [i - bar_width / 2 for i in x]
+        x_after = [i + bar_width / 2 for i in x]
+
+        bars_before = ax.bar(x_before, before_counts, bar_width, label="Before", color=colors_before, edgecolor="black")
+        bars_after = ax.bar(x_after, after_counts, bar_width, label="After", color=colors_after, edgecolor="black")
+
+        # Add count labels
+        for bar, count in zip(bars_before, before_counts):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1, str(count), ha="center", fontsize=9)
+        for bar, count in zip(bars_after, after_counts):
+            diff = count - before_counts[list(bars_after).index(bar)]
+            diff_str = f"+{diff}" if diff > 0 else str(diff) if diff < 0 else ""
+            label = f"{count}" + (f" ({diff_str})" if diff_str else "")
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1, label, ha="center", fontsize=9)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels([LABEL_NAMES[0], LABEL_NAMES[1]])
+        ax.set_title(
+            f"{split_name}\n(before: {len(before_ds)}, after: {len(after_ds)})", fontsize=12, fontweight="bold"
+        )
+        ax.set_ylabel("Count")
+        ax.legend(loc="upper right")
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+    fig.suptitle("Label Distribution: Before vs After", fontsize=14, fontweight="bold", y=1.02)
+    fig.tight_layout()
+    return fig
+
+
+def print_comparison_markdown_report(
+    before_datasets: dict[str, DroneVsBirdDataset],
+    after_datasets: dict[str, DroneVsBirdDataset],
+    before_img_stats: dict,
+    after_img_stats: dict,
+    new_files: list[str],
+) -> None:
+    """Print comparison dataset statistics in markdown format."""
+    print("# 📊 Drone vs Bird Dataset Changes\n")
+
+    # Summary of changes
+    before_total = sum(len(ds) for ds in before_datasets.values())
+    after_total = sum(len(ds) for ds in after_datasets.values())
+    diff_total = after_total - before_total
+    diff_str = f"+{diff_total}" if diff_total > 0 else str(diff_total)
+    print(f"**Total images:** {before_total} → {after_total} ({diff_str})\n")
+    print(f"**New files added:** {len(new_files)}\n")
+
+    # Split sizes comparison table
+    print("## Split Sizes\n")
+    print("| Split | Before | After | Diff |")
+    print("|-------|--------|-------|------|")
+    for split_name in ["Train", "Validation", "Test"]:
+        before_len = len(before_datasets[split_name])
+        after_len = len(after_datasets[split_name])
+        diff = after_len - before_len
+        diff_str = f"+{diff}" if diff > 0 else str(diff) if diff < 0 else "0"
+        print(f"| {split_name} | {before_len} | {after_len} | {diff_str} |")
+
+    before_total = sum(len(ds) for ds in before_datasets.values())
+    after_total = sum(len(ds) for ds in after_datasets.values())
+    diff_total = after_total - before_total
+    diff_str = f"+{diff_total}" if diff_total > 0 else str(diff_total) if diff_total < 0 else "0"
+    print(f"| **Total** | **{before_total}** | **{after_total}** | **{diff_str}** |")
+    print()
+
+    # Class distribution comparison table
+    print("## Class Distribution\n")
+    print("| Split | Class | Before | After | Diff |")
+    print("|-------|-------|--------|-------|------|")
+
+    for split_name in ["Train", "Validation", "Test"]:
+        before_ds = before_datasets[split_name]
+        after_ds = after_datasets[split_name]
+        before_counts = torch.bincount(torch.tensor(before_ds.labels), minlength=2)
+        after_counts = torch.bincount(torch.tensor(after_ds.labels), minlength=2)
+
+        for class_idx, class_name in LABEL_NAMES.items():
+            before_count = before_counts[class_idx].item()
+            after_count = after_counts[class_idx].item()
+            diff = after_count - before_count
+            diff_str = f"+{diff}" if diff > 0 else str(diff) if diff < 0 else "0"
+            print(f"| {split_name} | {class_name} | {before_count} | {after_count} | {diff_str} |")
+    print()
+
+    # New files list (first few)
+    if new_files:
+        print("## New Files Added\n")
+        print(f"Total new files: **{len(new_files)}**\n")
+        if len(new_files) <= 20:
+            for f in new_files:
+                print(f"- `{f}`")
+        else:
+            for f in new_files[:10]:
+                print(f"- `{f}`")
+            print(f"- ... and {len(new_files) - 10} more")
+        print()
+
+
 @app.command()
 def dataset_statistics(
     data_dir: Path = typer.Option(Path("data"), help="Directory containing the image data"),
     splits_dir: Path = typer.Option(Path("data/splits"), help="Directory containing split files"),
     output_dir: Path = typer.Option(Path("reports/figures"), help="Directory to save figures"),
     markdown: bool = typer.Option(False, "--markdown", "-m", help="Output statistics in markdown format for CI"),
+    before_data_dir: Path = typer.Option(
+        None, "--before-data-dir", help="Directory containing 'before' image data for comparison"
+    ),
+    before_splits_dir: Path = typer.Option(
+        None, "--before-splits-dir", help="Directory containing 'before' split files for comparison"
+    ),
 ) -> None:
     """Compute and display dataset statistics."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load datasets
+    # Check if we're in comparison mode
+    comparison_mode = before_data_dir is not None and before_splits_dir is not None
+
+    # Load current (after) datasets
     train_dataset = DroneVsBirdDataset(data_dir, splits_dir / "train_files.txt")
     val_dataset = DroneVsBirdDataset(data_dir, splits_dir / "val_files.txt")
     test_dataset = DroneVsBirdDataset(data_dir, splits_dir / "test_files.txt")
+    after_datasets = {"Train": train_dataset, "Validation": val_dataset, "Test": test_dataset}
 
     # Compute image statistics
     img_stats = get_image_stats(train_dataset)
 
-    # Print statistics (markdown or console format)
-    if markdown:
-        print_markdown_report(train_dataset, val_dataset, test_dataset, img_stats)
+    if comparison_mode:
+        # Load before datasets
+        before_train = DroneVsBirdDataset(before_data_dir, before_splits_dir / "train_files.txt")
+        before_val = DroneVsBirdDataset(before_data_dir, before_splits_dir / "val_files.txt")
+        before_test = DroneVsBirdDataset(before_data_dir, before_splits_dir / "test_files.txt")
+        before_datasets = {"Train": before_train, "Validation": before_val, "Test": before_test}
+
+        before_img_stats = get_image_stats(before_train)
+        new_files = find_new_files(before_splits_dir, splits_dir)
+
+        # Print comparison report
+        if markdown:
+            print_comparison_markdown_report(before_datasets, after_datasets, before_img_stats, img_stats, new_files)
+        else:
+            print("Comparison mode - console output not fully implemented")
+            print(f"Before data: {before_data_dir}")
+            print(f"After data: {data_dir}")
+            print(f"New files: {len(new_files)}")
+
+        # Generate comparison figures
+        if not markdown:
+            print("\n" + "-" * 40)
+            print("SAVING FIGURES")
+            print("-" * 40)
+
+        # Before/new sample images
+        fig = show_before_and_new_images(before_train, train_dataset, new_files, n_before=8, n_new=8)
+        fig.savefig(output_dir / "sample_images.png", dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        if not markdown:
+            print(f"✓ Saved: {output_dir / 'sample_images.png'}")
+
+        # Comparison distribution
+        fig = plot_comparison_distribution(before_datasets, after_datasets)
+        fig.savefig(output_dir / "all_splits_distribution.png", dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        if not markdown:
+            print(f"✓ Saved: {output_dir / 'all_splits_distribution.png'}")
+
     else:
-        print_console_report(train_dataset, val_dataset, test_dataset, img_stats, data_dir, splits_dir)
+        # Normal mode (no comparison)
+        # Print statistics (markdown or console format)
+        if markdown:
+            print_markdown_report(train_dataset, val_dataset, test_dataset, img_stats)
+        else:
+            print_console_report(train_dataset, val_dataset, test_dataset, img_stats, data_dir, splits_dir)
 
-        # Sample image info (console only)
-        sample_img, sample_label = train_dataset[0]
-        if hasattr(sample_img, "shape"):
-            print(f"Transformed image shape: {tuple(sample_img.shape)}")
-        print(f"Label type: {type(sample_label).__name__}")
+            # Sample image info (console only)
+            sample_img, sample_label = train_dataset[0]
+            if hasattr(sample_img, "shape"):
+                print(f"Transformed image shape: {tuple(sample_img.shape)}")
+            print(f"Label type: {type(sample_label).__name__}")
 
-    # Generate and save plots
-    if not markdown:
-        print("\n" + "-" * 40)
-        print("SAVING FIGURES")
-        print("-" * 40)
+        # Generate and save plots
+        if not markdown:
+            print("\n" + "-" * 40)
+            print("SAVING FIGURES")
+            print("-" * 40)
 
-    # Sample images
-    fig = show_sample_images(train_dataset, n_samples=16)
-    fig.savefig(output_dir / "sample_images.png", dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    if not markdown:
-        print(f"✓ Saved: {output_dir / 'sample_images.png'}")
+        # Sample images
+        fig = show_sample_images(train_dataset, n_samples=16)
+        fig.savefig(output_dir / "sample_images.png", dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        if not markdown:
+            print(f"✓ Saved: {output_dir / 'sample_images.png'}")
 
-    # Label distributions
-    fig = plot_label_distribution(train_dataset.labels, "Train Label Distribution")
-    fig.savefig(output_dir / "train_label_distribution.png", dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    if not markdown:
-        print(f"✓ Saved: {output_dir / 'train_label_distribution.png'}")
+        # Label distributions
+        fig = plot_label_distribution(train_dataset.labels, "Train Label Distribution")
+        fig.savefig(output_dir / "train_label_distribution.png", dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        if not markdown:
+            print(f"✓ Saved: {output_dir / 'train_label_distribution.png'}")
 
-    fig = plot_label_distribution(val_dataset.labels, "Validation Label Distribution")
-    fig.savefig(output_dir / "val_label_distribution.png", dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    if not markdown:
-        print(f"✓ Saved: {output_dir / 'val_label_distribution.png'}")
+        fig = plot_label_distribution(val_dataset.labels, "Validation Label Distribution")
+        fig.savefig(output_dir / "val_label_distribution.png", dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        if not markdown:
+            print(f"✓ Saved: {output_dir / 'val_label_distribution.png'}")
 
-    fig = plot_label_distribution(test_dataset.labels, "Test Label Distribution")
-    fig.savefig(output_dir / "test_label_distribution.png", dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    if not markdown:
-        print(f"✓ Saved: {output_dir / 'test_label_distribution.png'}")
+        fig = plot_label_distribution(test_dataset.labels, "Test Label Distribution")
+        fig.savefig(output_dir / "test_label_distribution.png", dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        if not markdown:
+            print(f"✓ Saved: {output_dir / 'test_label_distribution.png'}")
 
-    # Combined distribution
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4))
-    colors = ["#2ecc71", "#3498db"]
+        # Combined distribution
+        fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+        colors = ["#2ecc71", "#3498db"]
 
-    for ax, (name, dataset) in zip(
-        axes, [("Train", train_dataset), ("Validation", val_dataset), ("Test", test_dataset)]
-    ):
-        label_counts = torch.bincount(torch.tensor(dataset.labels), minlength=2)
-        bars = ax.bar([LABEL_NAMES[0], LABEL_NAMES[1]], label_counts.numpy(), color=colors, edgecolor="black")
-        for bar, count in zip(bars, label_counts):
-            ax.text(
-                bar.get_x() + bar.get_width() / 2, bar.get_height() + 1, str(count.item()), ha="center", fontsize=10
-            )
-        ax.set_title(f"{name} (n={len(dataset)})", fontsize=12, fontweight="bold")
-        ax.set_ylabel("Count")
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
+        for ax, (name, dataset) in zip(
+            axes, [("Train", train_dataset), ("Validation", val_dataset), ("Test", test_dataset)]
+        ):
+            label_counts = torch.bincount(torch.tensor(dataset.labels), minlength=2)
+            bars = ax.bar([LABEL_NAMES[0], LABEL_NAMES[1]], label_counts.numpy(), color=colors, edgecolor="black")
+            for bar, count in zip(bars, label_counts):
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2, bar.get_height() + 1, str(count.item()), ha="center", fontsize=10
+                )
+            ax.set_title(f"{name} (n={len(dataset)})", fontsize=12, fontweight="bold")
+            ax.set_ylabel("Count")
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
 
-    fig.suptitle("Label Distribution Across Splits", fontsize=14, fontweight="bold", y=1.02)
-    fig.tight_layout()
-    fig.savefig(output_dir / "all_splits_distribution.png", dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    if not markdown:
-        print(f"✓ Saved: {output_dir / 'all_splits_distribution.png'}")
+        fig.suptitle("Label Distribution Across Splits", fontsize=14, fontweight="bold", y=1.02)
+        fig.tight_layout()
+        fig.savefig(output_dir / "all_splits_distribution.png", dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        if not markdown:
+            print(f"✓ Saved: {output_dir / 'all_splits_distribution.png'}")
 
     if not markdown:
         print("\n" + "=" * 60)
