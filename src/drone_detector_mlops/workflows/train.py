@@ -46,7 +46,8 @@ def main(cfg: DictConfig) -> float:
     wandb.login(key=settings.WANDB_API_KEY)
     wandb.init(
         project=settings.WANDB_PROJECT_NAME,
-        name=f"resnet18-{timestamp}",
+        name=f"resnet18-lr{lr}-bs{batch_size}-e{epochs}-{timestamp}",
+        tags=["sweep", "optuna"] if cfg.get("multirun", False) else ["single-run"],
         config={
             "epochs": epochs,
             "batch_size": batch_size,
@@ -106,24 +107,35 @@ def main(cfg: DictConfig) -> float:
         # Save best model (only if validation loss improved)
         if val_metrics["loss"] < best_val_loss:
             best_val_loss = val_metrics["loss"]
-            model_filename = f"model-{timestamp}"
+            # Include hyperparameters in filename for sweep tracking
+            model_filename = f"model-lr{lr}-bs{batch_size}-e{epochs}-{timestamp}"
 
             model_path = storage.save_model(model, model_filename)
             logger.success("Best model saved", path=str(model_path), val_loss=best_val_loss)
 
             # Log model artifacts to W&B
             artifact = wandb.Artifact(
-                name=f"model-{timestamp}",
+                name=f"model-lr{lr}-bs{batch_size}-e{epochs}-{timestamp}",
                 type="model",
-                description=f"ResNet18 drone detector (val_loss={best_val_loss:.4f})",
+                description=f"ResNet18 drone detector (val_loss={best_val_loss:.4f}, lr={lr}, bs={batch_size}, epochs={epochs})",
+                metadata={
+                    "learning_rate": lr,
+                    "batch_size": batch_size,
+                    "epochs": epochs,
+                    "val_loss": best_val_loss,
+                    "val_acc": val_metrics["accuracy"],
+                    "architecture": "resnet18",
+                },
             )
 
             # Add both PyTorch and ONNX models
             if storage.mode == "local":
                 artifact.add_file(str(model_path))  # .pth file
                 artifact.add_file(str(model_path).replace(".pth", ".onnx"))  # .onnx file
-                artifact.add_file("models/model-latest.pth")
-                artifact.add_file("models/model-latest.onnx")
+                # Skip model-latest during sweeps to avoid conflicts between trials
+                if not cfg.get("multirun", False):
+                    artifact.add_file("models/model-latest.pth")
+                    artifact.add_file("models/model-latest.onnx")
             else:
                 # For cloud mode, just log the GCS paths
                 artifact.add_reference(str(model_path))
@@ -132,7 +144,11 @@ def main(cfg: DictConfig) -> float:
             wandb.log_artifact(artifact)
 
     wandb.finish()
-    logger.success("Training completed", best_val_loss=best_val_loss)
+    logger.success(
+        "Training completed",
+        best_val_loss=best_val_loss,
+        hyperparameters={"lr": lr, "batch_size": batch_size, "epochs": epochs},
+    )
 
     return val_metrics["loss"]  # Return for sweeper optimization
 
