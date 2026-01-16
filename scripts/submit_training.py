@@ -1,9 +1,8 @@
-"""Submit training job to Vertex AI."""
-
 import os
 from datetime import datetime
 from google.cloud import aiplatform
 import typer
+import traceback
 
 from drone_detector_mlops.utils.logger import get_logger
 from drone_detector_mlops.utils.settings import settings
@@ -20,6 +19,7 @@ def main(
     image_tag: str = typer.Option("latest", help="Docker image tag"),
     sweep: bool = typer.Option(False, help="Run Optuna sweep"),
     hydra_overrides: str = typer.Option("", help="Hydra overrides (comma-separated)"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
     """Submit a training job to Vertex AI."""
 
@@ -69,7 +69,7 @@ def main(
         container_args=container_args,
     )
 
-    if not typer.confirm("Submit this job?", default=True):
+    if not yes and not typer.confirm("Submit this job?", default=True):
         logger.warning("Job submission cancelled")
         raise typer.Exit(0)
 
@@ -89,7 +89,7 @@ def main(
                 environment_variables=env_vars,
                 replica_count=1,
                 machine_type=machine_type,
-                sync=True,  # Changed to True to see errors
+                sync=True,
             )
         else:
             logger.info("Submitting GPU job...")
@@ -100,7 +100,7 @@ def main(
                 machine_type=machine_type,
                 accelerator_type=accelerator_type,
                 accelerator_count=accelerator_count,
-                sync=True,  # Changed to True to see errors
+                sync=True,
             )
 
         logger.info("Job.run() returned", result=str(result))
@@ -124,13 +124,8 @@ def main(
 
     except Exception as e:
         logger.error("Job submission failed", error=str(e))
-        import traceback
 
-        print("\n" + "=" * 80)
-        print("FULL ERROR TRACEBACK:")
-        print("=" * 80)
         traceback.print_exc()
-        print("=" * 80 + "\n")
         raise typer.Exit(1)
 
 

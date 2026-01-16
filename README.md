@@ -50,8 +50,7 @@ gsutil -m rsync -r -d data/splits gs://drone-detection-mlops-data/structured/spl
 We use Google Cloud Build to offload the construction of the PyTorch/CUDA environment.
 
 ```bash
-gcloud builds submit --config cloudbuild.yaml \
-  --substitutions=_TAG_NAME=$(date +%Y%m%d-%H%M%S) .
+invoke cloud-build-train
 ```
 
 **Artifact Registry:** `europe-north2-docker.pkg.dev/drone-detection-mlops/ml-containers/train.`
@@ -63,9 +62,27 @@ Every build updates the :latest tag used for production runs.
 Training jobs run on dedicated NVIDIA T4 GPUs.
 
 ```bash
-uv run -m scripts.submit_training \
-  --machine-type n1-standard-4 \
-  --accelerator-type NVIDIA_TESLA_T4 \
-  --epochs 5 \
-  --batch-size 128
+# Default
+invoke cloud-train --epochs 50
+
+# Custom configuration
+invoke cloud-train --epochs 50 --batch-size 64
 ```
+
+### API Deployment
+
+The API uses **ONNX Runtime** for optimized CPU inference (much smaller container than PyTorch).
+
+#### Build and Deploy
+
+```bash
+# Build API container
+uv run invoke cloud-build-api
+
+# Deploy to Cloud Run
+uv run invoke deploy-api
+```
+
+**Live endpoint:** `https://drone-detector-api-66108710596.europe-north2.run.app`
+
+Models are automatically loaded from GCS (`model-latest.onnx`).
