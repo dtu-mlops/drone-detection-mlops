@@ -19,6 +19,10 @@ def main(
     image_tag: str = typer.Option("latest", help="Docker image tag"),
     sweep: bool = typer.Option(False, help="Run Optuna sweep"),
     hydra_overrides: str = typer.Option("", help="Hydra overrides (comma-separated)"),
+    config: str = typer.Option("param_1", help="Hyperparameter config (param_1, param_2)"),
+    epochs: int = typer.Option(None, help="Override epochs"),
+    batch_size: int = typer.Option(None, help="Override batch size"),
+    lr: float = typer.Option(None, help="Override learning rate"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt"),
 ):
     """Submit a training job to Vertex AI."""
@@ -44,10 +48,19 @@ def main(
     if sweep:
         container_args.extend(["--multirun", "+sweep=basic"])
     elif hydra_overrides:
+        # Custom Hydra overrides
         container_args.extend(hydra_overrides.split(","))
     else:
-        # Default: use param_1 config
-        container_args.append("hyper_parameters=param_1")
+        # Use specified config
+        container_args.append(f"hyper_parameters={config}")
+
+        # Apply individual overrides if provided
+        if epochs is not None:
+            container_args.append(f"hyper_parameters.epochs={epochs}")
+        if batch_size is not None:
+            container_args.append(f"hyper_parameters.batch_size={batch_size}")
+        if lr is not None:
+            container_args.append(f"hyper_parameters.lr={lr}")
 
     env_vars = {
         "MODE": "cloud",
