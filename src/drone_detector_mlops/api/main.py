@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
+from prometheus_client import Counter, make_asgi_app
 
 from drone_detector_mlops.api.inference import load_model_singleton, predict_image
 from drone_detector_mlops.api.schemas import HealthResponse, InfoResponse, PredictionResponse
@@ -15,6 +16,8 @@ logger = get_logger(__name__)
 
 # Track startup time for uptime
 startup_time: datetime | None = None
+
+error_counter = Counter("api_errors_total", "Total number of API errors")
 
 
 @asynccontextmanager
@@ -34,12 +37,14 @@ async def lifespan(app: FastAPI):
     logger.info("API shutting down")
 
 
+# Create FastAPI app
 app = FastAPI(
     title="Drone Detector API",
     description="Drone vs Bird classification API",
     version="1.0.0",
     lifespan=lifespan,
 )
+app.mount("/metrics", make_asgi_app())
 
 # Add CORS middleware
 app.add_middleware(
@@ -105,4 +110,5 @@ async def predict(file: UploadFile = File(...)):
 
     except Exception as e:
         logger.error("Prediction failed", error=str(e))
+        error_counter.inc()
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
