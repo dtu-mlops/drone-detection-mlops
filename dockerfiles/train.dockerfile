@@ -15,6 +15,8 @@ COPY pyproject.toml uv.lock ./
 
 COPY src/drone_detector_mlops/ ./drone_detector_mlops/
 
+COPY configs/ ./configs/
+
 ENV PYTHONPATH=/app
 
 RUN ls -R /app
